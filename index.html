@@ -130,6 +130,11 @@
             opacity: 0.7;
         }
 
+        .message-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
         .input-area {
             padding: 20px;
             background: rgba(0, 0, 0, 0.2);
@@ -316,7 +321,8 @@
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            contentDiv.textContent = content;
+            // Convert newlines to proper HTML line breaks and preserve formatting
+            contentDiv.innerHTML = content.replace(/\n/g, '<br>');
             
             messageDiv.appendChild(senderDiv);
             messageDiv.appendChild(contentDiv);
