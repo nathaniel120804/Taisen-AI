@@ -82,6 +82,27 @@
             font-weight: 600;
         }
 
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .model-dropdown {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 10px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .model-dropdown option {
+            background: #1a1a2e;
+            color: white;
+        }
+
         .status {
             color: #51cf66;
             font-size: 0.9rem;
@@ -250,6 +271,12 @@
             h1 {
                 font-size: 2rem;
             }
+            
+            .chat-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
@@ -257,14 +284,22 @@
     <div class="container">
         <header>
             <h1>Taisen AI GPT Chat Interface</h1>
-            <p class="subtitle">Powered by Gemma-3n model via AIML API</p>
+            <p class="subtitle">Choose your preferred AI model</p>
         </header>
 
         <div class="chat-container">
             <div class="chat-header">
                 <div class="model-info">
-                    <span class="model-badge">Gemma-3n</span>
+                    <span class="model-badge" id="currentModelBadge">Gemma-3n</span>
                     <span>AI Assistant</span>
+                </div>
+                <div class="model-selector">
+                    <label for="modelSelect">Model:</label>
+                    <select id="modelSelect" class="model-dropdown">
+                        <option value="google/gemma-3n-e4b-it">Gemma-3n</option>
+                        <option value="google/gemma-3-12b-it">Gemma-3-12b</option>
+                        <option value="deepseek/deepseek-reasoner-v3.1">DeepSeek Reasoner</option>
+                    </select>
                 </div>
                 <div class="status" id="statusIndicator">Ready</div>
             </div>
@@ -272,7 +307,7 @@
             <div class="chat-messages" id="chatMessages">
                 <div class="message ai-message">
                     <div class="message-sender">AI Assistant</div>
-                    <div class="message-content">Hello! I'm your AI assistant powered by the Gemma-3n model. Your API key is configured and ready to use. How can I help you today?</div>
+                    <div class="message-content">Hello! I'm your AI assistant. Please select your preferred model from the dropdown above. How can I help you today?</div>
                 </div>
             </div>
 
@@ -288,12 +323,12 @@
                 <span id="keyStatus" style="color: #51cf66;">Configured and Ready</span>
             </div>
             <p style="margin-top: 10px; font-size: 0.8rem; color: #a5b1c2;">
-                Using your provided API key. The interface is ready to communicate with the AI model.
+                Using your provided API key. The interface is ready to communicate with the AI models.
             </p>
         </div>
 
         <footer>
-            <p>Built with the AIML API | Model: google/gemma-3n-e4b-it</p>
+            <p>Built with the AIML API | <span id="footerModel">Model: google/gemma-3n-e4b-it</span></p>
         </footer>
     </div>
 
@@ -304,11 +339,49 @@
         const sendButton = document.getElementById('sendButton');
         const statusIndicator = document.getElementById('statusIndicator');
         const keyStatus = document.getElementById('keyStatus');
+        const modelSelect = document.getElementById('modelSelect');
+        const currentModelBadge = document.getElementById('currentModelBadge');
+        const footerModel = document.getElementById('footerModel');
 
         // API Configuration
         const API_KEY = '4344c369928a4a26997e233f39cce26d';
         const API_URL = 'https://api.aimlapi.com/v1/chat/completions';
-        const MODEL = 'google/gemma-3n-e4b-it';
+        
+        // Current model
+        let currentModel = modelSelect.value;
+
+        // Model configurations
+        const modelConfigs = {
+            'google/gemma-3n-e4b-it': {
+                temperature: 0.7,
+                top_p: 0.7,
+                frequency_penalty: 1,
+                max_tokens: 1536,
+                top_k: 50
+            },
+            'google/gemma-3-12b-it': {
+                temperature: 0.2,
+                top_p: 0.7,
+                frequency_penalty: 1,
+                max_tokens: 1536,
+                top_k: 50
+            },
+            'deepseek/deepseek-reasoner-v3.1': {
+                temperature: 0.2,
+                top_p: 0.7,
+                frequency_penalty: 1,
+                max_tokens: 1536,
+                top_k: 50
+            }
+        };
+
+        // Update model display
+        function updateModelDisplay() {
+            currentModel = modelSelect.value;
+            const modelName = modelSelect.options[modelSelect.selectedIndex].text;
+            currentModelBadge.textContent = modelName;
+            footerModel.textContent = `Model: ${currentModel}`;
+        }
 
         // Add message to chat
         function addMessage(content, isUser = false) {
@@ -369,6 +442,7 @@
             // Disable input while processing
             messageInput.disabled = true;
             sendButton.disabled = true;
+            modelSelect.disabled = true;
             
             // Add user message to chat
             addMessage(message, true);
@@ -379,20 +453,23 @@
             updateStatus('Thinking...');
             
             try {
+                // Get model configuration
+                const config = modelConfigs[currentModel];
+                
                 // Prepare the request
                 const requestBody = {
-                    model: MODEL,
+                    model: currentModel,
                     messages: [
                         {
                             role: 'user',
                             content: message
                         }
                     ],
-                    temperature: 0.7,
-                    top_p: 0.7,
-                    frequency_penalty: 1,
-                    max_tokens: 1536,
-                    top_k: 50,
+                    temperature: config.temperature,
+                    top_p: config.top_p,
+                    frequency_penalty: config.frequency_penalty,
+                    max_tokens: config.max_tokens,
+                    top_k: config.top_k,
                 };
                 
                 // Send request to AIML API
@@ -446,6 +523,7 @@
                 // Re-enable input
                 messageInput.disabled = false;
                 sendButton.disabled = false;
+                modelSelect.disabled = false;
                 messageInput.focus();
             }
         }
@@ -459,6 +537,11 @@
             }
         });
 
+        modelSelect.addEventListener('change', updateModelDisplay);
+
+        // Initialize
+        updateModelDisplay();
+        
         // Focus on input when page loads
         messageInput.focus();
     </script>
