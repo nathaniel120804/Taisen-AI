@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Taisen AI GPT Chat Interface</title>
+    <!-- Add Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -21,9 +25,138 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
+            flex: 1;
+            display: flex;
+            gap: 20px;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .sidebar-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.5rem;
+            background: linear-gradient(90deg, #4cc9f0, #4361ee);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #4361ee, #3a0ca3);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .new-chat-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
+        }
+
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .chat-history-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+            border-left: 3px solid transparent;
+            position: relative;
+        }
+
+        .chat-history-item:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .chat-history-item.active {
+            background: rgba(67, 97, 238, 0.2);
+            border-left-color: #4361ee;
+        }
+
+        .chat-history-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 20px;
+        }
+
+        .chat-history-preview {
+            font-size: 0.8rem;
+            color: #a5b1c2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-history-date {
+            font-size: 0.7rem;
+            color: #7e8a9a;
+            margin-top: 4px;
+        }
+
+        .delete-chat-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #ff6b6b;
+            border-radius: 4px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .chat-history-item:hover .delete-chat-btn {
+            opacity: 1;
+        }
+
+        .no-chats {
+            text-align: center;
+            color: #a5b1c2;
+            font-style: italic;
+            padding: 20px;
+        }
+
+        /* Main Content Styles */
+        .main-content {
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -254,6 +387,145 @@
             30% { transform: translateY(-5px); }
         }
 
+        /* Auth Section Styles */
+        .auth-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .auth-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .auth-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .auth-button {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #4361ee, #3a0ca3);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .auth-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .auth-button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4361ee, #3a0ca3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #1a1a2e;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal h2 {
+            margin-bottom: 20px;
+            text-align: center;
+            background: linear-gradient(90deg, #4cc9f0, #4361ee);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: #4361ee;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .modal-button.primary {
+            background: linear-gradient(135deg, #4361ee, #3a0ca3);
+            color: white;
+        }
+
+        .modal-button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .modal-button:hover {
+            transform: translateY(-1px);
+        }
+
         footer {
             text-align: center;
             padding: 20px;
@@ -264,6 +536,15 @@
         }
 
         @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                margin-bottom: 20px;
+            }
+
             .message {
                 max-width: 90%;
             }
@@ -277,62 +558,147 @@
                 gap: 10px;
                 align-items: flex-start;
             }
+
+            .auth-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .auth-buttons {
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>Taisen AI GPT Chat Interface</h1>
-            <p class="subtitle">Choose your preferred AI model</p>
-        </header>
-
-        <div class="chat-container">
-            <div class="chat-header">
-                <div class="model-info">
-                    <span class="model-badge" id="currentModelBadge">Gemma-3n</span>
-                    <span>AI Assistant</span>
-                </div>
-                <div class="model-selector">
-                    <label for="modelSelect">Model:</label>
-                    <select id="modelSelect" class="model-dropdown">
-                        <option value="google/gemma-3n-e4b-it">Gemma-3n</option>
-                        <option value="google/gemma-3-12b-it">Gemma-3-12b</option>
-                        <option value="deepseek/deepseek-reasoner-v3.1">DeepSeek Reasoner</option>
-                    </select>
-                </div>
-                <div class="status" id="statusIndicator">Ready</div>
+        <!-- Sidebar for Chat History -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Chat History</h2>
+                <button class="new-chat-btn" id="newChatBtn">+ New Chat</button>
             </div>
-
-            <div class="chat-messages" id="chatMessages">
-                <div class="message ai-message">
-                    <div class="message-sender">AI Assistant</div>
-                    <div class="message-content">Hello! I'm your AI assistant. Please select your preferred model from the dropdown above. How can I help you today?</div>
-                </div>
-            </div>
-
-            <div class="input-area">
-                <input type="text" class="message-input" id="messageInput" placeholder="Type your message here..." autocomplete="off">
-                <button class="send-button" id="sendButton">Send</button>
+            <div class="chat-history" id="chatHistoryList">
+                <div class="no-chats" id="noChatsMessage">No saved chats yet</div>
             </div>
         </div>
 
-        <div class="api-key-section">
-            <div class="api-key-label">
-                <span>API Key Status:</span>
-                <span id="keyStatus" style="color: #51cf66;">Configured and Ready</span>
-            </div>
-            <p style="margin-top: 10px; font-size: 0.8rem; color: #a5b1c2;">
-                Using your provided API key. The interface is ready to communicate with the AI models.
-            </p>
-        </div>
+        <!-- Main Content -->
+        <div class="main-content">
+            <header>
+                <h1>Taisen AI GPT Chat Interface</h1>
+                <p class="subtitle">Choose your preferred AI model</p>
+            </header>
 
-        <footer>
-            <p>Built with the AIML API | <span id="footerModel">Model: google/gemma-3n-e4b-it</span></p>
-        </footer>
+            <!-- Auth Section -->
+            <div class="auth-section" id="authSection">
+                <div class="auth-info">
+                    <span id="authStatus">Sign in to save chat history</span>
+                    <div class="user-info" id="userInfo" style="display: none;">
+                        <div class="user-avatar" id="userAvatar">U</div>
+                        <span id="userEmail">user@example.com</span>
+                    </div>
+                </div>
+                <div class="auth-buttons">
+                    <button class="auth-button" id="signInButton">Sign In</button>
+                    <button class="auth-button secondary" id="signOutButton" style="display: none;">Sign Out</button>
+                </div>
+            </div>
+
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="model-info">
+                        <span class="model-badge" id="currentModelBadge">Gemma-3n</span>
+                        <span>AI Assistant</span>
+                    </div>
+                    <div class="model-selector">
+                        <label for="modelSelect">Model:</label>
+                        <select id="modelSelect" class="model-dropdown">
+                            <option value="google/gemma-3n-e4b-it">Gemma-3n</option>
+                            <option value="google/gemma-3-12b-it">Gemma-3-12b</option>
+                            <option value="deepseek/deepseek-reasoner-v3.1">DeepSeek Reasoner</option>
+                        </select>
+                    </div>
+                    <div class="status" id="statusIndicator">Ready</div>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message ai-message">
+                        <div class="message-sender">AI Assistant</div>
+                        <div class="message-content">Hello! I'm your AI assistant. Please select your preferred model from the dropdown above. How can I help you today?</div>
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <input type="text" class="message-input" id="messageInput" placeholder="Type your message here..." autocomplete="off">
+                    <button class="send-button" id="sendButton">Send</button>
+                </div>
+            </div>
+
+            <div class="api-key-section">
+                <div class="api-key-label">
+                    <span>API Key Status:</span>
+                    <span id="keyStatus" style="color: #51cf66;">Configured and Ready</span>
+                </div>
+                <p style="margin-top: 10px; font-size: 0.8rem; color: #a5b1c2;">
+                    Using your provided API key. The interface is ready to communicate with the AI models.
+                </p>
+            </div>
+
+            <footer>
+                <p>Built with the AIML API | <span id="footerModel">Model: google/gemma-3n-e4b-it</span></p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Auth Modals -->
+    <div class="modal" id="authModal">
+        <div class="modal-content">
+            <h2 id="authModalTitle">Sign In</h2>
+            <div id="authModalContent">
+                <input type="email" class="modal-input" id="authEmail" placeholder="Email" autocomplete="email">
+                <input type="password" class="modal-input" id="authPassword" placeholder="Password" autocomplete="current-password">
+                <div class="modal-buttons">
+                    <button class="modal-button primary" id="authSubmitButton">Sign In</button>
+                    <button class="modal-button secondary" id="authCancelButton">Cancel</button>
+                </div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <button class="auth-button secondary" id="switchAuthMode" style="background: transparent; border: none; color: #a5b1c2; text-decoration: underline;">
+                        Don't have an account? Sign Up
+                    </button>
+                </div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <button class="auth-button secondary" id="googleSignIn" style="width: 100%; background: #db4437;">
+                        Sign in with Google
+                    </button>
+                </div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <button class="auth-button secondary" id="anonymousSignIn" style="width: 100%; background: rgba(255, 255, 255, 0.1);">
+                        Continue as Guest
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCMy4SNOU3eAl4iSfbmHWTxae9pVcnJFmc",
+            authDomain: "taisen-search-ad9eb.firebaseapp.com",
+            databaseURL: "https://taisen-search-ad9eb-default-rtdb.firebaseio.com",
+            projectId: "taisen-search-ad9eb",
+            storageBucket: "taisen-search-ad9eb.firebasestorage.app",
+            messagingSenderId: "779736719927",
+            appId: "1:779736719927:web:07ccea945f7549ad56d5b2",
+            measurementId: "G-CZMHDK5R3D"
+        };
+
+        // Initialize Firebase with Firestore
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
         // DOM Elements
         const chatMessages = document.getElementById('chatMessages');
         const messageInput = document.getElementById('messageInput');
@@ -343,12 +709,40 @@
         const currentModelBadge = document.getElementById('currentModelBadge');
         const footerModel = document.getElementById('footerModel');
 
+        // Sidebar DOM Elements
+        const newChatBtn = document.getElementById('newChatBtn');
+        const chatHistoryList = document.getElementById('chatHistoryList');
+        const noChatsMessage = document.getElementById('noChatsMessage');
+
+        // Auth DOM Elements
+        const authSection = document.getElementById('authSection');
+        const authStatus = document.getElementById('authStatus');
+        const userInfo = document.getElementById('userInfo');
+        const userAvatar = document.getElementById('userAvatar');
+        const userEmail = document.getElementById('userEmail');
+        const signInButton = document.getElementById('signInButton');
+        const signOutButton = document.getElementById('signOutButton');
+        const authModal = document.getElementById('authModal');
+        const authModalTitle = document.getElementById('authModalTitle');
+        const authModalContent = document.getElementById('authModalContent');
+        const authEmail = document.getElementById('authEmail');
+        const authPassword = document.getElementById('authPassword');
+        const authSubmitButton = document.getElementById('authSubmitButton');
+        const authCancelButton = document.getElementById('authCancelButton');
+        const switchAuthMode = document.getElementById('switchAuthMode');
+        const googleSignIn = document.getElementById('googleSignIn');
+        const anonymousSignIn = document.getElementById('anonymousSignIn');
+
         // API Configuration
         const API_KEY = '4344c369928a4a26997e233f39cce26d';
         const API_URL = 'https://api.aimlapi.com/v1/chat/completions';
         
-        // Current model
+        // Current model and chat state
         let currentModel = modelSelect.value;
+        let currentUser = null;
+        let isSignUp = false;
+        let currentChatId = null;
+        let userChats = {};
 
         // Model configurations
         const modelConfigs = {
@@ -375,7 +769,309 @@
             }
         };
 
-        // Update model display
+        // Chat Management Functions - UPDATED FOR FIRESTORE
+        function generateChatId() {
+            return 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function createNewChat() {
+            currentChatId = generateChatId();
+            clearChatMessages();
+            
+            // Add welcome message
+            addMessageToUI("Hello! I'm your AI assistant. How can I help you today?", false);
+            
+            // Save empty chat to Firestore if user is signed in
+            if (currentUser) {
+                saveChatToFirestore(currentChatId, [], "New Chat");
+            }
+            
+            updateChatHistoryList();
+            messageInput.focus();
+        }
+
+        function clearChatMessages() {
+            chatMessages.innerHTML = '';
+        }
+
+        async function saveChatToFirestore(chatId, messages, title = null) {
+            if (!currentUser) return;
+            
+            try {
+                const chatTitle = title || generateChatTitle(messages);
+                const lastMessage = messages.length > 0 ? messages[messages.length - 1]?.content : '';
+                
+                const chatData = {
+                    title: chatTitle,
+                    messages: messages,
+                    lastMessage: lastMessage,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    model: currentModel,
+                    userId: currentUser.uid // Store user ID for security rules
+                };
+                
+                // Save to Firestore
+                await db.collection('chats').doc(chatId).set(chatData);
+                
+                console.log('Chat saved to Firestore:', chatId);
+                
+            } catch (error) {
+                console.error('Error saving chat to Firestore:', error);
+            }
+        }
+
+        function generateChatTitle(messages) {
+            const firstUserMessage = messages.find(msg => msg.role === 'user');
+            if (firstUserMessage) {
+                const content = firstUserMessage.content;
+                return content.length > 30 ? content.substring(0, 30) + '...' : content;
+            }
+            return 'New Chat ' + new Date().toLocaleDateString();
+        }
+
+        async function loadChat(chatId) {
+            if (!currentUser) return;
+            
+            try {
+                const doc = await db.collection('chats').doc(chatId).get();
+                
+                if (!doc.exists) {
+                    console.log('Chat not found:', chatId);
+                    return;
+                }
+                
+                const chat = doc.data();
+                currentChatId = chatId;
+                
+                // Clear and reload chat messages
+                clearChatMessages();
+                chat.messages.forEach(msg => {
+                    addMessageToUI(msg.content, msg.role === 'user');
+                });
+                
+                // Update local state
+                userChats[chatId] = chat;
+                
+                updateChatHistoryList();
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+            } catch (error) {
+                console.error('Error loading chat:', error);
+            }
+        }
+
+        async function deleteChat(chatId) {
+            if (!currentUser || !confirm('Are you sure you want to delete this chat?')) return;
+            
+            try {
+                // Remove from Firestore
+                await db.collection('chats').doc(chatId).delete();
+                
+                // Remove from local state
+                delete userChats[chatId];
+                
+                // If deleting current chat, create a new one
+                if (currentChatId === chatId) {
+                    createNewChat();
+                }
+                
+                updateChatHistoryList();
+                
+            } catch (error) {
+                console.error('Error deleting chat:', error);
+            }
+        }
+
+        function updateChatHistoryList() {
+            if (!currentUser) {
+                chatHistoryList.innerHTML = '<div class="no-chats">Sign in to save and view chat history</div>';
+                return;
+            }
+            
+            const chatIds = Object.keys(userChats);
+            
+            if (chatIds.length === 0) {
+                noChatsMessage.style.display = 'block';
+                chatHistoryList.innerHTML = '<div class="no-chats">No saved chats yet</div>';
+                return;
+            }
+            
+            noChatsMessage.style.display = 'none';
+            
+            // Sort chats by timestamp (newest first)
+            const sortedChats = chatIds.sort((a, b) => {
+                const timeA = userChats[a].timestamp?.toDate?.() || new Date(userChats[a].timestamp);
+                const timeB = userChats[b].timestamp?.toDate?.() || new Date(userChats[b].timestamp);
+                return timeB - timeA;
+            });
+            
+            let html = '';
+            sortedChats.forEach(chatId => {
+                const chat = userChats[chatId];
+                const isActive = chatId === currentChatId;
+                const timestamp = chat.timestamp?.toDate?.() || new Date(chat.timestamp);
+                const date = timestamp.toLocaleDateString();
+                const preview = chat.lastMessage || 'No messages yet';
+                
+                html += `
+                    <div class="chat-history-item ${isActive ? 'active' : ''}" data-chat-id="${chatId}">
+                        <div class="chat-history-title">${chat.title}</div>
+                        <div class="chat-history-preview">${preview}</div>
+                        <div class="chat-history-date">${date}</div>
+                        <button class="delete-chat-btn" onclick="event.stopPropagation(); deleteChat('${chatId}')">×</button>
+                    </div>
+                `;
+            });
+            
+            chatHistoryList.innerHTML = html;
+            
+            // Add event listeners to chat history items
+            document.querySelectorAll('.chat-history-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const chatId = item.getAttribute('data-chat-id');
+                    loadChat(chatId);
+                });
+            });
+        }
+
+        async function loadUserChatsFromFirestore() {
+            if (!currentUser) return;
+            
+            try {
+                // Query chats where userId matches current user
+                const querySnapshot = await db.collection('chats')
+                    .where('userId', '==', currentUser.uid)
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
+                userChats = {};
+                querySnapshot.forEach(doc => {
+                    userChats[doc.id] = doc.data();
+                });
+                
+                console.log('Loaded user chats from Firestore:', Object.keys(userChats).length);
+                
+                updateChatHistoryList();
+                
+                // If no current chat, create one or load the most recent
+                if (!currentChatId || !userChats[currentChatId]) {
+                    const chatIds = Object.keys(userChats);
+                    if (chatIds.length > 0) {
+                        // Load the most recent chat
+                        loadChat(chatIds[0]);
+                    } else {
+                        createNewChat();
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error loading user chats from Firestore:', error);
+                userChats = {};
+            }
+        }
+
+        // Auth Functions
+        function showAuthModal() {
+            authModal.style.display = 'flex';
+            authEmail.value = '';
+            authPassword.value = '';
+            updateAuthModalMode();
+        }
+
+        function hideAuthModal() {
+            authModal.style.display = 'none';
+        }
+
+        function updateAuthModalMode() {
+            if (isSignUp) {
+                authModalTitle.textContent = 'Create Account';
+                authSubmitButton.textContent = 'Sign Up';
+                switchAuthMode.textContent = 'Already have an account? Sign In';
+            } else {
+                authModalTitle.textContent = 'Sign In';
+                authSubmitButton.textContent = 'Sign In';
+                switchAuthMode.textContent = "Don't have an account? Sign Up";
+            }
+        }
+
+        async function handleEmailAuth() {
+            const email = authEmail.value.trim();
+            const password = authPassword.value.trim();
+
+            if (!email || !password) {
+                alert('Please enter both email and password');
+                return;
+            }
+
+            try {
+                if (isSignUp) {
+                    await auth.createUserWithEmailAndPassword(email, password);
+                } else {
+                    await auth.signInWithEmailAndPassword(email, password);
+                }
+                hideAuthModal();
+            } catch (error) {
+                alert(`Authentication error: ${error.message}`);
+            }
+        }
+
+        async function handleGoogleAuth() {
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                await auth.signInWithPopup(provider);
+                hideAuthModal();
+            } catch (error) {
+                alert(`Google sign-in error: ${error.message}`);
+            }
+        }
+
+        async function handleAnonymousAuth() {
+            try {
+                await auth.signInAnonymously();
+                hideAuthModal();
+            } catch (error) {
+                alert(`Anonymous sign-in error: ${error.message}`);
+            }
+        }
+
+        function handleSignOut() {
+            auth.signOut();
+        }
+
+        function updateAuthUI(user) {
+            currentUser = user;
+            
+            if (user) {
+                const displayName = user.displayName || user.email || 'Anonymous User';
+                const email = user.email || 'Guest User';
+                const firstLetter = displayName.charAt(0).toUpperCase();
+                
+                authStatus.textContent = 'Signed in';
+                userEmail.textContent = email;
+                userAvatar.textContent = firstLetter;
+                
+                userInfo.style.display = 'flex';
+                signInButton.style.display = 'none';
+                signOutButton.style.display = 'block';
+                
+                // Load user's chat history from Firestore
+                loadUserChatsFromFirestore();
+                
+            } else {
+                authStatus.textContent = 'Sign in to save chat history';
+                userInfo.style.display = 'none';
+                signInButton.style.display = 'block';
+                signOutButton.style.display = 'none';
+                
+                // Clear local chat data when signed out
+                userChats = {};
+                currentChatId = null;
+                updateChatHistoryList();
+                createNewChat();
+            }
+        }
+
+        // Chat UI Functions
         function updateModelDisplay() {
             currentModel = modelSelect.value;
             const modelName = modelSelect.options[modelSelect.selectedIndex].text;
@@ -383,8 +1079,7 @@
             footerModel.textContent = `Model: ${currentModel}`;
         }
 
-        // Add message to chat
-        function addMessage(content, isUser = false) {
+        function addMessageToUI(content, isUser = false) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
             
@@ -394,7 +1089,6 @@
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            // Convert newlines to proper HTML line breaks and preserve formatting
             contentDiv.innerHTML = content.replace(/\n/g, '<br>');
             
             messageDiv.appendChild(senderDiv);
@@ -404,7 +1098,45 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Show typing indicator
+        function addMessage(content, isUser = false) {
+            addMessageToUI(content, isUser);
+            
+            // Create chat if none exists
+            if (!currentChatId) {
+                currentChatId = generateChatId();
+            }
+            
+            // Update local chat data
+            if (!userChats[currentChatId]) {
+                userChats[currentChatId] = {
+                    title: generateChatTitle([{ role: isUser ? 'user' : 'assistant', content: content }]),
+                    messages: [],
+                    lastMessage: '',
+                    timestamp: new Date(),
+                    model: currentModel,
+                    userId: currentUser ? currentUser.uid : null
+                };
+            }
+            
+            // Add message to current chat
+            userChats[currentChatId].messages.push({
+                role: isUser ? 'user' : 'assistant',
+                content: content,
+                timestamp: Date.now()
+            });
+            
+            userChats[currentChatId].lastMessage = content;
+            userChats[currentChatId].lastUpdated = new Date();
+            
+            // Save to Firestore if user is signed in
+            if (currentUser) {
+                saveChatToFirestore(currentChatId, userChats[currentChatId].messages, userChats[currentChatId].title);
+            }
+            
+            // Update sidebar
+            updateChatHistoryList();
+        }
+
         function showTypingIndicator() {
             const typingDiv = document.createElement('div');
             typingDiv.className = 'typing-indicator';
@@ -420,7 +1152,6 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Hide typing indicator
         function hideTypingIndicator() {
             const typingIndicator = document.getElementById('typingIndicator');
             if (typingIndicator) {
@@ -428,35 +1159,28 @@
             }
         }
 
-        // Update status indicator
         function updateStatus(status, isError = false) {
             statusIndicator.textContent = status;
             statusIndicator.style.color = isError ? '#ff6b6b' : '#51cf66';
         }
 
-        // Send message to AI
         async function sendMessage() {
             const message = messageInput.value.trim();
             if (!message) return;
             
-            // Disable input while processing
             messageInput.disabled = true;
             sendButton.disabled = true;
             modelSelect.disabled = true;
             
-            // Add user message to chat
             addMessage(message, true);
             messageInput.value = '';
             
-            // Show typing indicator
             showTypingIndicator();
             updateStatus('Thinking...');
             
             try {
-                // Get model configuration
                 const config = modelConfigs[currentModel];
                 
-                // Prepare the request
                 const requestBody = {
                     model: currentModel,
                     messages: [
@@ -472,7 +1196,6 @@
                     top_k: config.top_k,
                 };
                 
-                // Send request to AIML API
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
@@ -490,7 +1213,6 @@
                 const data = await response.json();
                 const aiMessage = data.choices[0].message.content;
                 
-                // Remove typing indicator and add AI response
                 hideTypingIndicator();
                 addMessage(aiMessage, false);
                 updateStatus('Ready');
@@ -499,7 +1221,6 @@
                 console.error('Error:', error);
                 hideTypingIndicator();
                 
-                // Provide user-friendly error message
                 let errorMessage = 'Sorry, I encountered an error while processing your request. ';
                 
                 if (error.message.includes('401')) {
@@ -515,12 +1236,10 @@
                 addMessage(errorMessage, false);
                 updateStatus('Error', true);
                 
-                // Reset status after 3 seconds
                 setTimeout(() => {
                     updateStatus('Ready');
                 }, 3000);
             } finally {
-                // Re-enable input
                 messageInput.disabled = false;
                 sendButton.disabled = false;
                 modelSelect.disabled = false;
@@ -528,22 +1247,39 @@
             }
         }
 
-        // Event listeners
+        // Event Listeners
         sendButton.addEventListener('click', sendMessage);
-        
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 sendMessage();
             }
         });
-
         modelSelect.addEventListener('change', updateModelDisplay);
+
+        // Sidebar Event Listeners
+        newChatBtn.addEventListener('click', createNewChat);
+
+        // Auth Event Listeners
+        signInButton.addEventListener('click', showAuthModal);
+        signOutButton.addEventListener('click', handleSignOut);
+        authCancelButton.addEventListener('click', hideAuthModal);
+        authSubmitButton.addEventListener('click', handleEmailAuth);
+        switchAuthMode.addEventListener('click', () => {
+            isSignUp = !isSignUp;
+            updateAuthModalMode();
+        });
+        googleSignIn.addEventListener('click', handleGoogleAuth);
+        anonymousSignIn.addEventListener('click', handleAnonymousAuth);
+
+        // Auth State Observer
+        auth.onAuthStateChanged((user) => {
+            updateAuthUI(user);
+        });
 
         // Initialize
         updateModelDisplay();
-        
-        // Focus on input when page loads
         messageInput.focus();
+        createNewChat();
     </script>
 </body>
 </html>
