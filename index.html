@@ -571,6 +571,7 @@
     </style>
 </head>
 <body>
+    <!-- ALL YOUR EXISTING HTML REMAINS EXACTLY THE SAME -->
     <div class="container">
         <!-- Sidebar for Chat History -->
         <div class="sidebar">
@@ -769,7 +770,7 @@
             }
         };
 
-        // Chat Management Functions - UPDATED FOR FIRESTORE
+        // Chat Management Functions - FIXED LOADING LOGIC
         function generateChatId() {
             return 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         }
@@ -781,9 +782,23 @@
             // Add welcome message
             addMessageToUI("Hello! I'm your AI assistant. How can I help you today?", false);
             
+            // Initialize empty chat in local state
+            userChats[currentChatId] = {
+                title: "New Chat",
+                messages: [{
+                    role: 'assistant',
+                    content: "Hello! I'm your AI assistant. How can I help you today?",
+                    timestamp: Date.now()
+                }],
+                lastMessage: "Hello! I'm your AI assistant. How can I help you today?",
+                timestamp: Date.now(),
+                model: currentModel,
+                userId: currentUser ? currentUser.uid : null
+            };
+            
             // Save empty chat to Firestore if user is signed in
             if (currentUser) {
-                saveChatToFirestore(currentChatId, [], "New Chat");
+                saveChatToFirestore(currentChatId, userChats[currentChatId].messages, "New Chat");
             }
             
             updateChatHistoryList();
@@ -807,13 +822,13 @@
                     lastMessage: lastMessage,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
                     model: currentModel,
-                    userId: currentUser.uid // Store user ID for security rules
+                    userId: currentUser.uid
                 };
                 
                 // Save to Firestore
                 await db.collection('chats').doc(chatId).set(chatData);
                 
-                console.log('Chat saved to Firestore:', chatId);
+                console.log('Chat saved to Firestore:', chatId, chatTitle);
                 
             } catch (error) {
                 console.error('Error saving chat to Firestore:', error);
@@ -830,34 +845,29 @@
         }
 
         async function loadChat(chatId) {
-            if (!currentUser) return;
+            if (!currentUser || !userChats[chatId]) {
+                console.log('Cannot load chat:', chatId, 'User:', currentUser, 'Chat exists:', userChats[chatId]);
+                return;
+            }
             
-            try {
-                const doc = await db.collection('chats').doc(chatId).get();
-                
-                if (!doc.exists) {
-                    console.log('Chat not found:', chatId);
-                    return;
-                }
-                
-                const chat = doc.data();
-                currentChatId = chatId;
-                
-                // Clear and reload chat messages
-                clearChatMessages();
+            const chat = userChats[chatId];
+            currentChatId = chatId;
+            
+            // Clear and reload chat messages
+            clearChatMessages();
+            if (chat.messages && chat.messages.length > 0) {
                 chat.messages.forEach(msg => {
                     addMessageToUI(msg.content, msg.role === 'user');
                 });
-                
-                // Update local state
-                userChats[chatId] = chat;
-                
-                updateChatHistoryList();
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-                
-            } catch (error) {
-                console.error('Error loading chat:', error);
+            } else {
+                addMessageToUI("No messages in this chat", false);
             }
+            
+            // Update active state in sidebar
+            updateChatHistoryList();
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            console.log('Loaded chat:', chatId, chat.title);
         }
 
         async function deleteChat(chatId) {
@@ -889,6 +899,7 @@
             }
             
             const chatIds = Object.keys(userChats);
+            console.log('Updating chat history list. Chats found:', chatIds.length);
             
             if (chatIds.length === 0) {
                 noChatsMessage.style.display = 'block';
@@ -935,9 +946,14 @@
         }
 
         async function loadUserChatsFromFirestore() {
-            if (!currentUser) return;
+            if (!currentUser) {
+                console.log('No user signed in, skipping chat load');
+                return;
+            }
             
             try {
+                console.log('Loading chats for user:', currentUser.uid);
+                
                 // Query chats where userId matches current user
                 const querySnapshot = await db.collection('chats')
                     .where('userId', '==', currentUser.uid)
@@ -945,28 +961,34 @@
                     .get();
                 
                 userChats = {};
+                let loadedCount = 0;
+                
                 querySnapshot.forEach(doc => {
                     userChats[doc.id] = doc.data();
+                    loadedCount++;
+                    console.log('Loaded chat:', doc.id, doc.data().title);
                 });
                 
-                console.log('Loaded user chats from Firestore:', Object.keys(userChats).length);
+                console.log('Total user chats loaded from Firestore:', loadedCount);
                 
                 updateChatHistoryList();
                 
-                // If no current chat, create one or load the most recent
-                if (!currentChatId || !userChats[currentChatId]) {
+                // If we have chats, load the most recent one
+                if (loadedCount > 0) {
                     const chatIds = Object.keys(userChats);
-                    if (chatIds.length > 0) {
-                        // Load the most recent chat
-                        loadChat(chatIds[0]);
-                    } else {
-                        createNewChat();
-                    }
+                    const mostRecentChatId = chatIds[0]; // Already sorted by timestamp
+                    console.log('Loading most recent chat:', mostRecentChatId);
+                    await loadChat(mostRecentChatId);
+                } else {
+                    console.log('No chats found, creating new one');
+                    createNewChat();
                 }
                 
             } catch (error) {
                 console.error('Error loading user chats from Firestore:', error);
                 userChats = {};
+                // Create new chat even if loading fails
+                createNewChat();
             }
         }
 
@@ -1054,6 +1076,7 @@
                 signInButton.style.display = 'none';
                 signOutButton.style.display = 'block';
                 
+                console.log('User signed in, loading chats...');
                 // Load user's chat history from Firestore
                 loadUserChatsFromFirestore();
                 
@@ -1104,15 +1127,23 @@
             // Create chat if none exists
             if (!currentChatId) {
                 currentChatId = generateChatId();
+                userChats[currentChatId] = {
+                    title: generateChatTitle([{ role: isUser ? 'user' : 'assistant', content: content }]),
+                    messages: [],
+                    lastMessage: '',
+                    timestamp: Date.now(),
+                    model: currentModel,
+                    userId: currentUser ? currentUser.uid : null
+                };
             }
             
-            // Update local chat data
+            // Ensure chat exists in local state
             if (!userChats[currentChatId]) {
                 userChats[currentChatId] = {
                     title: generateChatTitle([{ role: isUser ? 'user' : 'assistant', content: content }]),
                     messages: [],
                     lastMessage: '',
-                    timestamp: new Date(),
+                    timestamp: Date.now(),
                     model: currentModel,
                     userId: currentUser ? currentUser.uid : null
                 };
@@ -1126,7 +1157,12 @@
             });
             
             userChats[currentChatId].lastMessage = content;
-            userChats[currentChatId].lastUpdated = new Date();
+            userChats[currentChatId].lastUpdated = Date.now();
+            
+            // Update title if this is the first user message
+            if (isUser && userChats[currentChatId].messages.filter(msg => msg.role === 'user').length === 1) {
+                userChats[currentChatId].title = generateChatTitle([{ role: 'user', content: content }]);
+            }
             
             // Save to Firestore if user is signed in
             if (currentUser) {
@@ -1273,6 +1309,7 @@
 
         // Auth State Observer
         auth.onAuthStateChanged((user) => {
+            console.log('Auth state changed:', user ? 'User signed in' : 'User signed out');
             updateAuthUI(user);
         });
 
